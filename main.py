@@ -95,5 +95,7 @@ df_sido = df[df["시도"] == selected_sido]
 
 with col2:
 
+with col2:
+
 # 화면에 그래프 출력
 st.plotly_chart(fig, use_container_width=True)
