@@ -1,13 +1,70 @@
+
+target_rows = df_sigungu[df_sigungu["동"] == selected_dong]
+
+if target_rows.empty:
+    st.warning("선택한 지역의 데이터가 존재하지 않습니다.")
+    st.stop()
+
+target_row = target_rows.iloc[0]
+
+
+# 0세부터 100세 이상까지 남녀 인구 추출
+age_categories = [f"{i}세" for i in range(100)] + ["100세 이상"]
+male_pop = []
+female_pop = []
+
+for age in age_categories:
+    male_col = f"남_{age}"
+    female_col = f"여_{age}"
+
+    m_val = target_row[male_col] if male_col in target_row.index else 0
+    f_val = target_row[female_col] if female_col in target_row.index else 0
+
+    male_pop.append(0 if pd.isna(m_val) else int(m_val))
+    female_pop.append(0 if pd.isna(f_val) else int(f_val))
+
+
+# 인구 지표 계산
+total_population = sum(male_pop) + sum(female_pop)
+age_population = [
+    male + female for male, female in zip(male_pop, female_pop)
+]
+
+# 연령별 인구를 이용한 가중 평균연령 추정
+# 100세 이상은 계산 시 100세로 간주
+weighted_age_sum = sum(
+    age * population
+    for age, population in enumerate(age_population[:100])
+)
+weighted_age_sum += 100 * age_population[100]
+
+average_age = (
+    weighted_age_sum / total_population if total_population > 0 else 0
+)
+
+# 65세 이상 인구 및 고령화율
+elderly_population = sum(age_population[65:])
+elderly_rate = (
+    elderly_population / total_population * 100
+    if total_population > 0
+    else 0
+)
+
+
+# 지표 카드 3개 — 반드시 columns 생성 후 각 metric 사용
+st.markdown("### 📊 핵심 인구 지표")
+metric1, metric2, metric3 = st.columns(3)
+
+with metric1:
+    st.metric("총인구", f"{total_population:,}명")
+
 with metric2:
     st.metric("평균연령", f"{average_age:.1f}세")
 
 with metric3:
-    st.metric("고령화율", f"{elderly_rate:.1f}%")
+st.metric("고령화율", f"{elderly_rate:.1f}%")
     if elderly_rate > 20:
-        st.markdown(
-            '<div class="metric-warning">⚠️ 고령화율 20% 초과</div>',
-            unsafe_allow_html=True,
-        )
+        st.warning("⚠️ 고령화율 20% 초과")
 
 st.caption(
     "평균연령은 연령대별 인구를 이용한 추정치이며, "
@@ -16,7 +73,7 @@ st.caption(
 st.markdown("---")
 
 
-# 인구 피라미드
+# 인구 피라미드 그래프
 male_pop_neg = [-value for value in male_pop]
 
 fig = go.Figure()
@@ -83,8 +140,9 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 
-# 아이와 어르신 중 어느 쪽이 많은지 자동 설명
-children_population = sum(age_population[:15])  # 0~14세
+# 아이(0~14세)와 어르신(65세 이상) 인구 비교 문장
+children_population = sum(age_population[:15])
+
 if children_population > elderly_population:
     insight = (
         f"이 동네는 0~14세 인구가 {children_population:,}명으로 "
